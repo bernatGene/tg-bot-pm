@@ -1,0 +1,12 @@
+# secrets files
+*.toml
+
+# data files
+*.csv
+*.bckp
+
+# notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+
