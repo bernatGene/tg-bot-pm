@@ -2,7 +2,7 @@
 *.toml
 
 # data files
-*.csv
+# *.csv
 *.bckp
 
 # notebooks
