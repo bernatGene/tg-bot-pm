@@ -9,6 +9,9 @@ from telegram import Update
 from telegram.ext import CallbackContext
 from telegram.ext import CommandHandler
 
+
+from sqlalchemy.engine import create_engine
+
 st.title("Telegram bot dashboard")
 
 HELP = "commands /start, /register, /yesterday <hh> <mm>"
@@ -22,12 +25,27 @@ def read_db():
 
 
 def write_db():
-    st.session_state.db.to_csv("db.csv")
+    gs_url = st.secrets["gs_url"]
+
+
+    engine = create_engine(
+        "gsheets://",
+        catalog={
+            "simple_sheet": (
+                "https://docs.google.com/spreadsheets/d/1_rN3lm0R_bU3NemO0s9pbFkY5LQPcuy1pscv8ZXPtg8/edit#gid=774535750"
+            ),
+        },
+    )
+    connection = engine.connect()
+    for row in connection.execute("SELECT * FROM simple_sheet"):
+        print(row)
+        st.write(row)
 
 
 def register_user(update: Update, context: CallbackContext):
     user = update.message.from_user
     username = user.username or user.first_name or user.name or user.full_name or user.id
+    username = username.lower()
     try: 
         if not username.isalpha() or len(username) > 20:
             resp = "Invalid username, only <20 chars and only letters allowed"
@@ -45,6 +63,7 @@ def register_user(update: Update, context: CallbackContext):
 def summary(update: Update, context: CallbackContext):
     user = update.message.from_user
     username = user.username or user.first_name or user.name or user.full_name or user.id
+    username = username.lower()
     try:
         user_db = Path(f"{username}.csv")
         if not user_db.is_file():
@@ -69,6 +88,7 @@ def summary(update: Update, context: CallbackContext):
 def start(update: Update, context: CallbackContext):
     user = update.message.from_user
     username = user.username or user.first_name or user.name or user.full_name or user.id
+    username = username.lower()
     resp = f"Fa pal escriure descripcio, hola {username}, i tal. Commandes son: " + HELP
     context.bot.send_message(
         chat_id=update.effective_chat.id, text=resp
@@ -100,6 +120,7 @@ def reminder(update: Update, context: CallbackContext):
 def yesterday(update: Update, context: CallbackContext):
     user = update.message.from_user
     username = user.username or user.first_name or user.name or user.full_name or user.id
+    username = username.lower()
     value = context.args
     user_db = Path(f"{username}.csv")
     if not user_db.is_file():
@@ -160,3 +181,4 @@ def stop_bot():
 
 st.button("Start bot", on_click=start_telegram_bot)
 st.button("Stop bot", on_click=stop_bot)
+st.button("Write db", on_click=write_db)
