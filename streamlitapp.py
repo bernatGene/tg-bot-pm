@@ -10,36 +10,11 @@ from telegram.ext import CallbackContext
 from telegram.ext import CommandHandler
 
 
-from sqlalchemy.engine import create_engine
-
 st.title("Telegram bot dashboard")
 
 HELP = "commands /start, /register, /yesterday <hh> <mm>"
 
-st.markdown("## The bot is running" if "updater" in st.session_state else "## Nothing running.")
-
-
-def read_db():
-    db = pd.read_csv("db.csv")
-    st.session_state.db = db
-
-
-def write_db():
-    gs_url = st.secrets["gs_url"]
-
-
-    engine = create_engine(
-        "gsheets://",
-        catalog={
-            "simple_sheet": (
-                "https://docs.google.com/spreadsheets/d/1_rN3lm0R_bU3NemO0s9pbFkY5LQPcuy1pscv8ZXPtg8/edit#gid=774535750"
-            ),
-        },
-    )
-    connection = engine.connect()
-    for row in connection.execute("SELECT * FROM simple_sheet"):
-        print(row)
-        st.write(row)
+# def read_db()
 
 
 def register_user(update: Update, context: CallbackContext):
@@ -140,17 +115,11 @@ def yesterday(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=update.effective_chat.id, text=resp)
     reminder(update, context)
 
-
-def start_telegram_bot():
-    if "udpater" in st.session_state:
-        st.text("already running")
-        return
-
+def _create_updater():
     token = st.secrets["BOT_TOKEN"]
-    st.session_state.updater = Updater(
+    updater = Updater(
         token=token, use_context=True
     )
-    updater = st.session_state.updater
     logging.basicConfig(
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         level=logging.INFO,
@@ -167,18 +136,42 @@ def start_telegram_bot():
     dispatcher.add_handler(summary_handler)
     reminder_handler = CommandHandler("reminder", reminder)
     dispatcher.add_handler(reminder_handler)
+    return updater
+
+
+@st.experimental_singleton
+def get_updater():
+    updater = _create_updater()
+    return {
+        "active": True,
+        "updater": updater,
+    }
+
+
+def start_telegram_bot():
+    updater = get_updater()
+    print(updater)
+    if not updater["active"]:
+        updater["updater"] = _create_updater()
+        updater["active"] = True
+        return
+    st.text("Already running")
 
 
 def stop_bot():
-    if "updater" not in st.session_state:
-        print("nothing is running")
+    updater = get_updater()
+    if updater["active"]:
+        updater["updater"]: _create_updater()
+        ret = updater["updater"].stop()
+        print(ret)
+        updater["updater"] = None
+        updater["active"] = False
         return
-
-    ret = st.session_state.updater.stop()
-    print(ret)
-    del st.session_state["updater"]
+    st.text("It is not running")
 
 
 st.button("Start bot", on_click=start_telegram_bot)
 st.button("Stop bot", on_click=stop_bot)
-st.button("Write db", on_click=write_db)
+
+up = get_updater()
+st.markdown("## The bot is running" if up["active"] else "## Nothing running.")
