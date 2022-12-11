@@ -184,16 +184,14 @@ def _create_updater():
 
 @st.experimental_singleton
 def get_updater():
-    updater = _create_updater()
     return {
-        "active": True,
-        "updater": updater,
+        "active": False,
+        "updater": None,
     }
 
 
 def start_telegram_bot():
     updater = get_updater()
-    print(updater)
     if not updater["active"]:
         updater["updater"] = _create_updater()
         updater["active"] = True
@@ -205,8 +203,7 @@ def stop_bot():
     updater = get_updater()
     if updater["active"]:
         updater["updater"]: _create_updater()
-        ret = updater["updater"].stop()
-        print(ret)
+        updater["updater"].stop()
         updater["updater"] = None
         updater["active"] = False
         return
