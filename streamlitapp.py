@@ -166,6 +166,8 @@ def yesterday(update: Update, context: CallbackContext):
     # delta = pd.Timedelta(hours=int(value[0]), minutes=int(value[1])).seconds
     delta_str = f"{int(value[0]):02d}:{int(value[1]):02d}:00"
     _yesterday = pd.Timestamp(date.today() - pd.Timedelta(days=1))
+    if _yesterday not in df.index:
+        df.loc[_yesterday] = [pd.NaT] * len(df.columns)
     row = df.index.get_loc(_yesterday) + 2
     col = df.columns.get_loc(username) + 2
     db.update_cell(row, col, delta_str)
