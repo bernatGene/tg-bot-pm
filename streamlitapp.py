@@ -197,6 +197,7 @@ def rolling_avg(update: Update, context: CallbackContext):
     context.bot.send_photo(
         chat_id=update.effective_chat.id,
         photo=img,
+        caption="Mitjana setmanal rodant. (Per a cada dia, la mitjana dels últims 7)"
     )
 
 
