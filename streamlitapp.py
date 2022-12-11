@@ -67,17 +67,23 @@ def register_user(update: Update, context: CallbackContext):
         resp = f"Hola {username}, benvingut."
         user_col = len(users) + 1
         db.update_cell(1, user_col, username)
-    context.bot.send_message(chat_id=update.effective_chat.id, text=resp)
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=resp,
+        reply_to_message_id=update.message.message_id,
+    )
 
 
-def _check_user(update, context, df = None):
+def _check_user(update, context, df=None):
     username = _username(update)
     if df is None:
         df = _get_dataframe()
     users = df.columns
     if username not in users:
         context.bot.send_message(
-            chat_id=update.effective_chat.id, text="Usuari no registrat"
+            chat_id=update.effective_chat.id,
+            text="Usuari no registrat",
+            reply_to_message_id=update.message.message_id,
         )
         return
     return username
@@ -93,12 +99,17 @@ def summary(update: Update, context: CallbackContext):
         val.min().components,
         val.mean().components,
     )
-    t = f"En total has passat {total.days} dies, {total.hours} hores i {total.minutes} minuts mirant el mobil."
-    h = f"El teu record en un dia es de {high.hours} hores i {high.minutes} minuts."
-    l = f"I el minim que has aconseguit es de {low.hours} hores i {low.minutes} minuts."
-    a = f"La teva mitjana diaria es de {avg.hours} hores i {avg.minutes} minuts."
-    for resp in [t, h, l, a]:
-        context.bot.send_message(chat_id=update.effective_chat.id, text=resp)
+    resp = f"""
+En total has passat {total.days} dies, {total.hours} hores i {total.minutes} minuts mirant el mobil.
+El teu record en un dia es de {high.hours} hores i {high.minutes} minuts.
+I el minim que has aconseguit es de {low.hours} hores i {low.minutes} minuts.
+La teva mitjana diaria es de {avg.hours} hores i {avg.minutes} minuts.
+            """
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=resp,
+        reply_to_message_id=update.message.message_id,
+    )
 
 
 def start(update: Update, context: CallbackContext):
@@ -108,7 +119,10 @@ def start(update: Update, context: CallbackContext):
     )
     username = username.lower()
     resp = f"Fa pal escriure descripcio, hola {username}, i tal. Commandes son: " + HELP
-    context.bot.send_message(chat_id=update.effective_chat.id, text=resp)
+    message_id = update.message.message_id
+    context.bot.send_message(
+        chat_id=update.effective_chat.id, text=resp, reply_to_message_id=message_id
+    )
 
 
 def reminder(update: Update, context: CallbackContext):
@@ -117,16 +131,16 @@ def reminder(update: Update, context: CallbackContext):
     users = df.columns
     was_empty = False
     if _yesterday not in df.index:
-        df.loc[_yesterday] = [pd.NaT]*len(users)
+        df.loc[_yesterday] = [pd.NaT] * len(users)
         was_empty = True
     values = df.loc[_yesterday]
     done = []
     pending = []
     for usr, val in zip(users, values):
         if pd.isnull(val):
-            pending.append('@' + usr)
+            pending.append("@" + usr)
         else:
-            done.append('@' + usr)
+            done.append("@" + usr)
 
     if not done:
         message = "Ningu ha marcat encara el seu us d'ahir"
@@ -156,7 +170,11 @@ def yesterday(update: Update, context: CallbackContext):
     col = df.columns.get_loc(username) + 2
     db.update_cell(row, col, delta_str)
     resp = f"M'apunto que ahir vas passar {value[0]} hores i {value[1]} minuts."
-    context.bot.send_message(chat_id=update.effective_chat.id, text=resp)
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=resp,
+        reply_to_message_id=update.message.message_id,
+    )
     reminder(update, context)
 
 
