@@ -276,7 +276,7 @@ def generate_rolling_avg_plot():
         df[usr+"rollavg"] = avg
     cds = ColumnDataSource(df) 
     fig, ax = plt.subplots(figsize=(9, 5))
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d/%Y'))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m/%Y'))
     for usr in users:
         print(df.index, df[usr+"rollavg"])
         ax.plot(df.index, df[usr+"rollavg"], label=usr)
