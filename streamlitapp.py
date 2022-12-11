@@ -1,12 +1,15 @@
 from pathlib import Path
 import streamlit as st
 import pandas as pd
+import numpy as np
 from datetime import date
 from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource, Span, DatetimeTickFormatter
 from bokeh.palettes import d3
 from bokeh.io import export_png
 
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
 from telegram.ext import Updater
 import logging
@@ -268,49 +271,25 @@ def generate_rolling_avg_plot():
         avg = []
         for w in df[usr].rolling(7):
             w.dropna(inplace=True)
-            avg.append((w.sum()/len(w)).seconds//60 if len(w) else pd.NA)
+            avg.append((w.sum()/len(w)).seconds//60 if len(w) else np.nan)
         df[usr+"rollavg"] = avg
     cds = ColumnDataSource(df) 
-    print(df)
-    plot = figure(
-        height=360,
-        width=640,
-        title="Mitjana setmanal rodant (Per a cada dia, quina és la mitjana dels últims 7)",
-        tools="pan,reset,save,wheel_zoom",
-        active_scroll="wheel_zoom",
-        sizing_mode="fixed",
-        x_axis_type="datetime",
-        y_axis_type="log",
-        x_axis_label="Dia",
-        y_axis_label="Minuts",
-    )
-    plot.xaxis.formatter = DatetimeTickFormatter(days=["%d/%m"])
-    span = Span(
-        location=120,
-        dimension="width",
-        line_color="#009E73",
-        line_dash="dashed",
-        line_width=3,
-        # legend_label="Objectiu"
-    )
-    plot.add_layout(span)
-    colors = d3['Category10'][10]
-    for i, usr in enumerate(users):
-        plot.line(
-            x="Dia",
-            y=usr+"rollavg",
-            color=colors[i%len(colors)],
-            line_width=3,
-            source=cds,
-            legend_label=usr
-        )
-    plot.legend.location = "bottom_left"
-    export_png(plot, filename="plot.png")
-    return plot
+    fig, ax = plt.subplots(figsize=(9, 5))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d/%Y'))
+    for usr in users:
+        print(df.index, df[usr+"rollavg"])
+        ax.plot(df.index, df[usr+"rollavg"], label=usr)
+    ax.axhline(y=120, color="k", linestyle=":", linewidth=1, label="Objectiu")
+    ax.legend()
+    ax.set_xlabel("Dia")
+    ax.set_ylabel("Minuts")
+    fig.autofmt_xdate()
+    fig.savefig("plot.png")
+    return fig
 
 def show_rolling_avg_plot():
     plot = generate_rolling_avg_plot()
-    st.bokeh_chart(plot)
+    st.pyplot(plot)
 
 def main():
     st.title("Telegram bot dashboard")
