@@ -2,3 +2,5 @@ python-telegram-bot==13.14
 pandas
 oauth2client
 gspread
+bokeh==2.4.3
+selenium
