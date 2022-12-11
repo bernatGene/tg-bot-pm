@@ -11,3 +11,7 @@
 
 
 pm-db-371218-7f2376f866b4.json
+*.svg
+*.png
+
+__pycache__/

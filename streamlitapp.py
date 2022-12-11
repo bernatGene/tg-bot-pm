@@ -1,8 +1,12 @@
-from functools import partial
+from pathlib import Path
 import streamlit as st
 import pandas as pd
-from pathlib import Path
 from datetime import date
+from bokeh.plotting import figure
+from bokeh.models import ColumnDataSource, Span, DatetimeTickFormatter
+from bokeh.palettes import d3
+from bokeh.io import export_png
+
 
 from telegram.ext import Updater
 import logging
@@ -15,7 +19,6 @@ from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 
 
-st.title("Telegram bot dashboard")
 
 HELP = "commands /start, /register, /yesterday <hh> <mm>"
 
@@ -180,6 +183,19 @@ def yesterday(update: Update, context: CallbackContext):
     )
     reminder(update, context)
 
+def rolling_avg(update: Update, context: CallbackContext):
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="Dibuixant el gràfic...",
+        reply_to_message_id=update.message.message_id,
+    )
+    generate_rolling_avg_plot()
+    img = Path("plot.png").read_bytes()
+    context.bot.send_photo(
+        chat_id=update.effective_chat.id,
+        photo=img,
+    )
+
 
 def _create_updater():
     token = st.secrets["BOT_TOKEN"]
@@ -200,6 +216,8 @@ def _create_updater():
     dispatcher.add_handler(summary_handler)
     reminder_handler = CommandHandler("reminder", reminder)
     dispatcher.add_handler(reminder_handler)
+    rolling_avg_handler = CommandHandler("rolling_avg", rolling_avg)
+    dispatcher.add_handler(rolling_avg_handler)
     return updater
 
 
@@ -243,11 +261,68 @@ def show_st_dataframe():
     st.code(df)
     st.write(df.dtypes)
 
+def generate_rolling_avg_plot():
+    df = _get_dataframe()
+    users = list(df.columns)
+    for usr in users:
+        avg = []
+        for w in df[usr].rolling(7):
+            w.dropna(inplace=True)
+            avg.append((w.sum()/len(w)).seconds//60 if len(w) else pd.NA)
+        df[usr+"rollavg"] = avg
+    cds = ColumnDataSource(df) 
+    print(df)
+    plot = figure(
+        height=360,
+        width=640,
+        title="Mitjana setmanal rodant (Per a cada dia, quina és la mitjana dels últims 7)",
+        tools="pan,reset,save,wheel_zoom",
+        active_scroll="wheel_zoom",
+        sizing_mode="fixed",
+        x_axis_type="datetime",
+        y_axis_type="log",
+        x_axis_label="Dia",
+        y_axis_label="Minuts",
+    )
+    plot.xaxis.formatter = DatetimeTickFormatter(days=["%d/%m"])
+    span = Span(
+        location=120,
+        dimension="width",
+        line_color="#009E73",
+        line_dash="dashed",
+        line_width=3,
+        # legend_label="Objectiu"
+    )
+    plot.add_layout(span)
+    colors = d3['Category10'][10]
+    for i, usr in enumerate(users):
+        plot.line(
+            x="Dia",
+            y=usr+"rollavg",
+            color=colors[i%len(colors)],
+            line_width=3,
+            source=cds,
+            legend_label=usr
+        )
+    plot.legend.location = "bottom_left"
+    export_png(plot, filename="plot.png")
+    return plot
 
-st.button("Start bot", on_click=start_telegram_bot)
-st.button("Stop bot", on_click=stop_bot)
-st.button("Restart bot", on_click=restart_bot)
-st.button("Print df", on_click=show_st_dataframe)
+def show_rolling_avg_plot():
+    plot = generate_rolling_avg_plot()
+    st.bokeh_chart(plot)
 
-up = get_updater()
-st.markdown("## The bot is running" if up["active"] else "## Nothing running.")
+def main():
+    st.title("Telegram bot dashboard")
+    with st.sidebar:
+        st.button("Start bot", on_click=start_telegram_bot)
+        st.button("Stop bot", on_click=stop_bot)
+        st.button("Restart bot", on_click=restart_bot)
+        st.button("Print df", on_click=show_st_dataframe)
+        st.button("Show rolling avg plot", on_click=show_rolling_avg_plot)
+
+    up = get_updater()
+    st.markdown("## The bot is running" if up["active"] else "## Nothing running.")
+
+if __name__ == "__main__":
+    main()
