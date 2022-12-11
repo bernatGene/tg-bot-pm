@@ -167,11 +167,12 @@ def yesterday(update: Update, context: CallbackContext):
     delta_str = f"{int(value[0]):02d}:{int(value[1]):02d}:00"
     _yesterday = pd.Timestamp(date.today() - pd.Timedelta(days=1))
     if _yesterday not in df.index:
-        df.loc[_yesterday] = [pd.NaT] * len(df.columns)
-    row = df.index.get_loc(_yesterday) + 2
-    col = df.columns.get_loc(username) + 2
-    db.update_cell(row, col, delta_str)
-    resp = f"M'apunto que ahir vas passar {value[0]} hores i {value[1]} minuts."
+        resp = f"This should not happen. Yesterday row not in database. Check google sheets"
+    else:
+        row = df.index.get_loc(_yesterday) + 2
+        col = df.columns.get_loc(username) + 2
+        db.update_cell(row, col, delta_str)
+        resp = f"M'apunto que ahir vas passar {value[0]} hores i {value[1]} minuts."
     context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=resp,
