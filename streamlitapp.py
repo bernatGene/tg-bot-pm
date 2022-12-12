@@ -2,7 +2,8 @@ from pathlib import Path
 import streamlit as st
 import pandas as pd
 import numpy as np
-from datetime import date
+from datetime import date, datetime
+import pytz
 from bokeh.plotting import figure
 from bokeh.models import ColumnDataSource, Span, DatetimeTickFormatter
 from bokeh.palettes import d3
@@ -133,7 +134,9 @@ def start(update: Update, context: CallbackContext):
 
 def reminder(update: Update, context: CallbackContext):
     df = _get_dataframe()
-    _yesterday = pd.Timestamp(date.today() - pd.Timedelta(days=1))
+    _y = datetime.now(tz=pytz.timezone("Europe/Paris")) - pd.Timedelta(days=1)
+    day, month, year = _y.day, _y.month, _y.year
+    _yesterday = pd.Timestamp(day=day, month=month, year=year)
     users = df.columns
     was_empty = False
     if _yesterday not in df.index:
@@ -171,7 +174,9 @@ def yesterday(update: Update, context: CallbackContext):
     username = _check_user(update, context, df=df)
     # delta = pd.Timedelta(hours=int(value[0]), minutes=int(value[1])).seconds
     delta_str = f"{int(value[0]):02d}:{int(value[1]):02d}:00"
-    _yesterday = pd.Timestamp(date.today() - pd.Timedelta(days=1))
+    _y = datetime.now(tz=pytz.timezone("Europe/Paris")) - pd.Timedelta(days=1)
+    day, month, year = _y.day, _y.month, _y.year
+    _yesterday = pd.Timestamp(day=day, month=month, year=year)
     if _yesterday not in df.index:
         resp = f"This should not happen. Yesterday row not in database. Check google sheets"
     else:
