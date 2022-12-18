@@ -219,7 +219,7 @@ def _create_updater():
     updater.start_polling()
     register_handler = CommandHandler("register", register_user)
     dispatcher.add_handler(register_handler)
-    yesterday_handler = CommandHandler("yesterday", yesterday)
+    yesterday_handler = CommandHandler(["yesterday", "y"], yesterday)
     dispatcher.add_handler(yesterday_handler)
     summary_handler = CommandHandler("summary", summary)
     dispatcher.add_handler(summary_handler)
