@@ -166,14 +166,14 @@ def reminder(update: Update, context: CallbackContext):
 
 def yesterday(update: Update, context: CallbackContext):
     value = context.args
-    if len(value) != 2 or not all([v.isdigit() and len(v) == 2 for v in value]):
+    if len(value) != 2 or not all([v.isdigit() and len(v) <= 2 for v in value]):
         resp = "Commanda en mal format. Escriu: '/yesterday hh mm' (hours minutes)"
         context.bot.send_message(chat_id=update.effective_chat.id, text=resp)
         return
     df, db = _get_dataframe(return_db=True)
     username = _check_user(update, context, df=df)
-    # delta = pd.Timedelta(hours=int(value[0]), minutes=int(value[1])).seconds
-    delta_str = f"{int(value[0]):02d}:{int(value[1]):02d}:00"
+    h, m = int(value[0]), int(value[1])
+    delta_str = f"{h:02d}:{m:02d}:00"
     _y = datetime.now(tz=pytz.timezone("Europe/Paris")) - pd.Timedelta(days=1)
     day, month, year = _y.day, _y.month, _y.year
     _yesterday = pd.Timestamp(day=day, month=month, year=year)
@@ -183,7 +183,7 @@ def yesterday(update: Update, context: CallbackContext):
         row = df.index.get_loc(_yesterday) + 2
         col = df.columns.get_loc(username) + 2
         db.update_cell(row, col, delta_str)
-        resp = f"M'apunto que ahir vas passar {value[0]} hores i {value[1]} minuts."
+        resp = f"M'apunto que ahir vas passar {h} hor{'a' if h == 1 else 'es'} i {m} minut{'s' if m != 1 else ''}."
     context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=resp,
