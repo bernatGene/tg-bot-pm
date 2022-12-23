@@ -1,19 +1,16 @@
 from pathlib import Path
+from functools import partial
+from datetime import datetime
+import pytz
+import logging
+
 import streamlit as st
 import pandas as pd
 import numpy as np
-from datetime import date, datetime
-import pytz
-from bokeh.plotting import figure
-from bokeh.models import ColumnDataSource, Span, DatetimeTickFormatter
-from bokeh.palettes import d3
-from bokeh.io import export_png
-
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
 from telegram.ext import Updater
-import logging
 from telegram import Update
 from telegram.ext import CallbackContext
 from telegram.ext import CommandHandler
@@ -21,7 +18,6 @@ from telegram.ext import CommandHandler
 
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread
-
 
 
 HELP = "commands /start, /register, /yesterday <hh> <mm>"
@@ -191,6 +187,7 @@ def yesterday(update: Update, context: CallbackContext):
     )
     reminder(update, context)
 
+
 def rolling_avg(update: Update, context: CallbackContext):
     context.bot.send_message(
         chat_id=update.effective_chat.id,
@@ -202,7 +199,7 @@ def rolling_avg(update: Update, context: CallbackContext):
     context.bot.send_photo(
         chat_id=update.effective_chat.id,
         photo=img,
-        caption="Mitjana setmanal rodant. (Per a cada dia, la mitjana dels últims 7)"
+        caption="Mitjana setmanal rodant. (Per a cada dia, la mitjana dels últims 7)",
     )
 
 
@@ -270,32 +267,64 @@ def show_st_dataframe():
     st.code(df)
     st.write(df.dtypes)
 
-def generate_rolling_avg_plot():
+
+def get_trend(period: pd.Timedelta):
+    df = _get_dataframe()
+    df = df.loc[df.index > (df.index.max() - period)]
+    users = list(df.columns)
+    polys = []
+    for usr in users:
+        usr = df[usr].dropna()
+        dayn = (usr.index - usr.index.max()).days
+        dayn -= dayn.min()
+        vals = usr.dt.total_seconds() // 60
+        m, n = np.polyfit(dayn, vals, 1)
+        intr = m * dayn + n
+        polys.append((m, n, intr, usr.index))
+    return polys
+
+
+def generate_rolling_avg_plot(return_ax=False):
     df = _get_dataframe()
     users = list(df.columns)
     for usr in users:
         avg = []
         for w in df[usr].rolling(7):
             w.dropna(inplace=True)
-            avg.append((w.sum()/len(w)).seconds//60 if len(w) else np.nan)
-        df[usr+"rollavg"] = avg
-    cds = ColumnDataSource(df) 
+            avg.append((w.sum() / len(w)).seconds // 60 if len(w) else np.nan)
+        df[usr + "rollavg"] = avg
     fig, ax = plt.subplots(figsize=(9, 5))
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m/%Y'))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m/%Y"))
     for usr in users:
-        print(df.index, df[usr+"rollavg"])
-        ax.plot(df.index, df[usr+"rollavg"], label=usr)
+        print(df.index, df[usr + "rollavg"])
+        ax.plot(df.index, df[usr + "rollavg"], label=usr)
     ax.axhline(y=120, color="k", linestyle=":", linewidth=1, label="Objectiu")
     ax.legend()
     ax.set_xlabel("Dia")
     ax.set_ylabel("Minuts")
     fig.autofmt_xdate()
     fig.savefig("plot.png")
+    if return_ax:
+        return fig, ax
     return fig
+
 
 def show_rolling_avg_plot():
     plot = generate_rolling_avg_plot()
     st.pyplot(plot)
+
+
+def show_trend_lines():
+    fig, ax = generate_rolling_avg_plot(return_ax=True)
+    ax.set_prop_cycle(None)
+    trend_lines = get_trend(pd.Timedelta(days=60))
+    for m, n, intr, indx in trend_lines:
+        ax.plot(indx, intr, linestyle=":")
+        st.code(m, n)
+    st.pyplot(fig)
+
+    # st.code(trend_lines)
+
 
 def main():
     st.title("Telegram bot dashboard")
@@ -305,9 +334,11 @@ def main():
         st.button("Restart bot", on_click=restart_bot)
         st.button("Print df", on_click=show_st_dataframe)
         st.button("Show rolling avg plot", on_click=show_rolling_avg_plot)
+        st.button("Show trend lines", on_click=show_trend_lines)
 
     up = get_updater()
     st.markdown("## The bot is running" if up["active"] else "## Nothing running.")
+
 
 if __name__ == "__main__":
     main()
