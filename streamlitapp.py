@@ -12,8 +12,8 @@ import matplotlib.dates as mdates
 
 from telegram.ext import Updater
 from telegram import Update
-from telegram.ext import CallbackContext
-from telegram.ext import CommandHandler
+from telegram.ext import CallbackContext, Filters
+from telegram.ext import CommandHandler, MessageHandler
 
 
 from oauth2client.service_account import ServiceAccountCredentials
@@ -68,7 +68,7 @@ def register_user(update: Update, context: CallbackContext):
         resp = "Ja estas registrat cabron."
     else:
         resp = f"Hola {username}, benvingut."
-        user_col = len(users) + 1
+        user_col = len(users) + 2
         db.update_cell(1, user_col, username)
     context.bot.send_message(
         chat_id=update.effective_chat.id,
@@ -202,6 +202,45 @@ def rolling_avg(update: Update, context: CallbackContext):
         caption="Mitjana setmanal rodant. (Per a cada dia, la mitjana dels últims 7)",
     )
 
+def trendline(update: Update, context: CallbackContext):
+    args = context.args
+    period = 300 
+    text = "Calculant..."
+    if len(args) ==  1 and args[0].isdigit():
+        period = int(args[0])
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=text,
+        reply_to_message_id=update.message.message_id,
+    )
+    trends = get_trend(pd.Timedelta(days=period))
+    if period == 300:
+        end = "des del primer registre"
+    else:
+        end = f"dels últims {period} dies"
+
+    resps = [f"Pendent de la línia de tendència {end}"]
+    up = "📈" 
+    down = "📉" 
+    for usr, m, n, intr, indx in trends:
+        emoj = up if m > 0 else down
+        plus = "+" if m > 0 else ""
+        resp = f"{emoj} {usr}: {plus} {m * 10:.1f}%"
+        resps.append(resp)
+
+    resp = "\n".join(resps)
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=resp,
+    )
+    
+def unknown(update: Update, context: CallbackContext):
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="No t'entec colega, ho deus haver escrit mal.",
+        reply_to_message_id=update.message.message_id,
+    )
+
 
 def _create_updater():
     token = st.secrets["BOT_TOKEN"]
@@ -224,6 +263,10 @@ def _create_updater():
     dispatcher.add_handler(reminder_handler)
     rolling_avg_handler = CommandHandler("rolling_avg", rolling_avg)
     dispatcher.add_handler(rolling_avg_handler)
+    trendline_handler = CommandHandler("trendline", trendline)
+    dispatcher.add_handler(trendline_handler)
+    unknown_handler = MessageHandler(Filters.command, unknown)
+    dispatcher.add_handler(unknown_handler)
     return updater
 
 
@@ -274,13 +317,13 @@ def get_trend(period: pd.Timedelta):
     users = list(df.columns)
     polys = []
     for usr in users:
-        usr = df[usr].dropna()
-        dayn = (usr.index - usr.index.max()).days
+        usrd = df[usr].dropna()
+        dayn = (usrd.index - usrd.index.max()).days
         dayn -= dayn.min()
-        vals = usr.dt.total_seconds() // 60
+        vals = usrd.dt.total_seconds() // 60
         m, n = np.polyfit(dayn, vals, 1)
         intr = m * dayn + n
-        polys.append((m, n, intr, usr.index))
+        polys.append((usr, m, n, intr, usrd.index))
     return polys
 
 
@@ -318,9 +361,9 @@ def show_trend_lines():
     fig, ax = generate_rolling_avg_plot(return_ax=True)
     ax.set_prop_cycle(None)
     trend_lines = get_trend(pd.Timedelta(days=60))
-    for m, n, intr, indx in trend_lines:
+    for _, m, n, intr, indx in trend_lines:
         ax.plot(indx, intr, linestyle=":")
-        st.code(m, n)
+        st.code((m, n))
     st.pyplot(fig)
 
     # st.code(trend_lines)
