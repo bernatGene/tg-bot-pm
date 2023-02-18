@@ -10,6 +10,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
+import asyncio
+
+
 from telegram.ext import Updater
 from telegram import Update
 from telegram.ext import CallbackContext, Filters
@@ -19,6 +22,7 @@ from telegram.ext import CommandHandler, MessageHandler
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 
+st.camera_input("Test")
 
 HELP = "commands /start, /register, /yesterday <hh> <mm>"
 
@@ -57,6 +61,15 @@ def _username(update):
     )
     username = username.lower()
     return username
+
+def set_ticker(Q, update: Update, context: CallbackContext):
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="Setting ticker",
+        reply_to_message_id=update.message.message_id,
+    )
+    
+    Q.put_nowait({'update': update, "context": context})
 
 
 def register_user(update: Update, context: CallbackContext):
@@ -265,12 +278,15 @@ def _create_updater():
     dispatcher.add_handler(rolling_avg_handler)
     trendline_handler = CommandHandler("trendline", trendline)
     dispatcher.add_handler(trendline_handler)
+    st.session_state.Q = asyncio.Queue()
+    ticker_handler = CommandHandler("ticker", partial(set_ticker, st.session_state.Q))
+    dispatcher.add_handler(ticker_handler)
     unknown_handler = MessageHandler(Filters.command, unknown)
     dispatcher.add_handler(unknown_handler)
     return updater
 
 
-@st.experimental_singleton
+@st.cache_resource
 def get_updater():
     return {
         "active": False,
@@ -368,8 +384,50 @@ def show_trend_lines():
 
     # st.code(trend_lines)
 
+async def _ticker_task(dur):
+    up = get_updater()
+    up["tick_context"].bot.send_message(
+        chat_id=up["update"].effective_chat.id,
+        text="task begin",
+    )
+    while up["active"]:
+        await asyncio.sleep(dur)
+        up["tick_context"].bot.send_message(
+        chat_id=up["tick_update"].effective_chat.id,
+        text="TICKER",
+        reply_to_message_id=up["tick_update"].message.message_id,
+    )
 
-def main():
+
+@st.cache_resource
+def ticker_task(dur=10):
+    up = get_updater()
+    up["tick_context"].bot.send_message(
+        chat_id=up["update"].effective_chat.id,
+        text="task prep",
+    )
+    return asyncio.create_task(_ticker_task(dur))
+
+
+async def handle_queue():
+    print("setting queu")
+    print(list(st.session_state.items()))
+    it = await st.session_state.Q.get()
+    print("done")
+    up = get_updater()
+    up["tick_context"].bot.send_message(
+        chat_id=up["update"].effective_chat.id,
+        text="getting queue",
+    )
+    st.session_state.Q.task_done()
+    up = get_updater()
+    up["tick_update"] = it["update"]
+    up["tick_context"] = it["context"]
+    st.session_state.task = ticker_task()
+
+
+
+async def main():
     st.title("Telegram bot dashboard")
     with st.sidebar:
         st.button("Start bot", on_click=start_telegram_bot)
@@ -381,7 +439,13 @@ def main():
 
     up = get_updater()
     st.markdown("## The bot is running" if up["active"] else "## Nothing running.")
+    # st.session_state.task = asyncio.create_task(handle_queue())
 
 
 if __name__ == "__main__":
-    main()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
